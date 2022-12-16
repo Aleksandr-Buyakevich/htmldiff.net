@@ -13,6 +13,8 @@ namespace HtmlDiff
         /// </summary>
         private const int MatchGranularityMaximum = 4;
 
+        private const string WHITESPACE_STRING = " ";
+
         private readonly StringBuilder _content;
         private string _newText;
         private string _oldText;
@@ -407,7 +409,34 @@ namespace HtmlDiff
                 positionInNew = match.EndInNew;
             }
 
-            return operations;
+            List<Operation> processedOperations = new List<Operation>();
+            var lastOp = new Operation(Action.None, 0, 0, 0, 0);
+
+            foreach (Operation operation in operations)
+            {
+                bool needMergeOperations = (IsSingleWhitespace(operation) && lastOp.Action == Action.Replace) ||
+                        (operation.Action == Action.Replace && lastOp.Action == Action.Replace);
+
+                if (needMergeOperations)
+                {
+                    lastOp.EndInOld = operation.EndInOld;
+                    lastOp.EndInNew = operation.EndInNew;
+                }
+                else
+                {
+                    processedOperations.Add(operation);
+                    lastOp = operation;
+                }
+            }
+
+            return processedOperations;
+        }
+        
+        private bool IsSingleWhitespace(Operation op)
+        {
+            return op?.Action == Action.Equal &&
+                   op.EndInOld - op.StartInOld == 1 &&
+                   _oldWords[op.StartInOld] == WHITESPACE_STRING;
         }
 
         private IEnumerable<Match> RemoveOrphans(IEnumerable<Match> matches)
